@@ -648,7 +648,7 @@ export default function Home() {
     // Load owned journal
     const { data: journals } = await supabase.from('journals').select('*').eq('owner_id', userId).limit(1)
 
-    // Load shared journals
+    // Load shared journals (re-query after linking above)
     const { data: memberRows } = await supabase.from('journal_members').select('journal_id').eq('user_id', userId)
     if (memberRows?.length) {
       const ids = memberRows.map(r => r.journal_id)
@@ -658,11 +658,19 @@ export default function Home() {
 
     if (!journals || journals.length === 0) {
       if (memberRows?.length) {
-        // No owned journal — load first shared journal
+        // No owned journal — show first shared journal
         const ids = memberRows.map(r => r.journal_id)
         const { data: shared } = await supabase.from('journals').select('*').in('id', ids)
         if (shared?.length) { setJournal(shared[0]); await loadMemories(shared[0].id) }
       } else {
+        // Check if invited by email but journal_members not yet updated (edge case)
+        const { data: pendingInvite } = await supabase.from('journal_members')
+          .select('journal_id').eq('email', userEmail.toLowerCase()).limit(1)
+        if (pendingInvite?.length) {
+          // They were just linked above — reload
+          const { data: shared } = await supabase.from('journals').select('*').eq('id', pendingInvite[0].journal_id)
+          if (shared?.length) { setJournal(shared[0]); await loadMemories(shared[0].id); setLoading(false); return }
+        }
         setShowWelcome(true)
       }
       setLoading(false)

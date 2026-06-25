@@ -13,13 +13,23 @@ export default function AuthPage() {
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState('login')
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   const submit = async () => {
-    setError('') 
+    setError(''); setInfo('')
     setLoading(true)
+    if (mode === 'forgot') {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${location.origin}/auth/reset`,
+      })
+      setLoading(false)
+      if (error) { setError(error.message); return }
+      setInfo('Check your email for a password reset link.')
+      return
+    }
     let result
     if (mode === 'login') {
       result = await supabase.auth.signInWithPassword({ email, password })
@@ -42,35 +52,57 @@ export default function AuthPage() {
           A journal for the moments worth keeping.
         </p>
         <div style={{ background: P.card, borderRadius: 16, padding: '28px 24px' }}>
-          <div style={{ display: 'flex', marginBottom: 24, background: '#F0EAE1', borderRadius: 10, padding: 4 }}>
-            {['login', 'signup'].map(m => (
-              <button key={m} onClick={() => setMode(m)} style={{
-                flex: 1, padding: '8px 0', fontSize: 14, fontWeight: 700,
-                background: mode === m ? '#fff' : 'transparent',
-                border: 'none', borderRadius: 8, cursor: 'pointer',
-                color: mode === m ? P.walnut : P.inkFaint,
-                boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,.1)' : 'none',
-                transition: 'all .15s',
-              }}>{m === 'login' ? 'Sign in' : 'Sign up'}</button>
-            ))}
-          </div>
+          {mode !== 'forgot' && (
+            <div style={{ display: 'flex', marginBottom: 24, background: '#F0EAE1', borderRadius: 10, padding: 4 }}>
+              {['login', 'signup'].map(m => (
+                <button key={m} onClick={() => { setMode(m); setError(''); setInfo('') }} style={{
+                  flex: 1, padding: '8px 0', fontSize: 14, fontWeight: 700,
+                  background: mode === m ? '#fff' : 'transparent',
+                  border: 'none', borderRadius: 8, cursor: 'pointer',
+                  color: mode === m ? P.walnut : P.inkFaint,
+                  boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,.1)' : 'none',
+                  transition: 'all .15s',
+                }}>{m === 'login' ? 'Sign in' : 'Sign up'}</button>
+              ))}
+            </div>
+          )}
+          {mode === 'forgot' && (
+            <div style={{ marginBottom: 20, textAlign: 'left' }}>
+              <button onClick={() => { setMode('login'); setError(''); setInfo('') }}
+                style={{ background: 'none', border: 'none', color: P.inkFaint, fontSize: 13, cursor: 'pointer', padding: 0 }}>← Back to sign in</button>
+              <p style={{ margin: '12px 0 0', fontWeight: 700, fontSize: 16, color: P.walnut }}>Reset your password</p>
+            </div>
+          )}
           <input value={email} onChange={e => setEmail(e.target.value)}
             placeholder="Email address" type="email"
             style={{ width: '100%', border: `1px solid ${P.border}`, borderRadius: 10,
               padding: '12px 14px', fontSize: 15, marginBottom: 10,
               background: '#FFFEFA', color: '#1A1108', outline: 'none' }} />
-          <input value={password} onChange={e => setPassword(e.target.value)}
-            placeholder="Password" type="password"
-            onKeyDown={e => e.key === 'Enter' && submit()}
-            style={{ width: '100%', border: `1px solid ${P.border}`, borderRadius: 10,
-              padding: '12px 14px', fontSize: 15, marginBottom: 16,
-              background: '#FFFEFA', color: '#1A1108', outline: 'none' }} />
+          {mode !== 'forgot' && (
+            <input value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="Password" type="password"
+              onKeyDown={e => e.key === 'Enter' && submit()}
+              style={{ width: '100%', border: `1px solid ${P.border}`, borderRadius: 10,
+                padding: '12px 14px', fontSize: 15, marginBottom: 16,
+                background: '#FFFEFA', color: '#1A1108', outline: 'none' }} />
+          )}
+          {mode === 'login' && (
+            <div style={{ textAlign: 'right', marginBottom: 12, marginTop: -6 }}>
+              <button onClick={() => { setMode('forgot'); setError(''); setInfo('') }}
+                style={{ background: 'none', border: 'none', color: P.inkFaint, fontSize: 12, cursor: 'pointer' }}>
+                Forgot password?
+              </button>
+            </div>
+          )}
           {error && <p style={{ color: '#C97070', fontSize: 13, marginBottom: 12 }}>{error}</p>}
-          <button onClick={submit} disabled={!email || !password || loading} style={{
-            width: '100%', background: email && password ? P.walnut : P.inkFaint,
-            color: '#fff', border: 'none', borderRadius: 10, padding: '13px 0',
-            fontSize: 15, fontWeight: 700, cursor: email && password ? 'pointer' : 'default',
-          }}>{loading ? '…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
+          {info && <p style={{ color: '#6A9E6A', fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>{info}</p>}
+          {!info && (
+            <button onClick={submit} disabled={!email || (mode !== 'forgot' && !password) || loading} style={{
+              width: '100%', background: email ? P.walnut : P.inkFaint,
+              color: '#fff', border: 'none', borderRadius: 10, padding: '13px 0',
+              fontSize: 15, fontWeight: 700, cursor: email ? 'pointer' : 'default',
+            }}>{loading ? '…' : mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}</button>
+          )}
         </div>
       </div>
     </div>

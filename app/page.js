@@ -676,8 +676,11 @@ export default function Home() {
 
   const loadMemories = async (journalId) => {
     const { data: mems } = await supabase.from('memories').select('*').eq('journal_id', journalId).order('date', { ascending: false })
-    const { data: reacts } = await supabase.from('reactions').select('*').eq('memory_id', mems?.map?.(m=>m.id) || [])
-    const { data: comms } = await supabase.from('comments').select('*')
+    const ids = (mems || []).map(m => m.id)
+    const [{ data: reacts }, { data: comms }] = await Promise.all([
+      ids.length ? supabase.from('reactions').select('*').in('memory_id', ids) : { data: [] },
+      ids.length ? supabase.from('comments').select('*').in('memory_id', ids) : { data: [] },
+    ])
     setMemories(mems || [])
     setReactions(reacts || [])
     setComments(comms || [])

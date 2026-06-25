@@ -305,17 +305,24 @@ function CommentsDrawer({ memId, memory, comments, onClose, onAdd }) {
   )
 }
 
+const JOURNAL_TYPES = [
+  { id:'family',    emoji:'👨‍👩‍👧‍👦', label:'Family',           desc:'Shared moments, milestones, and memories for the whole family.' },
+  { id:'loved-one', emoji:'🤍',       label:'Loved one',       desc:'A private journal dedicated to one person — a parent, child, or partner.' },
+  { id:'difficult', emoji:'🌧️',       label:'Difficult moments', desc:'A space to process hard times, grief, and things worth remembering anyway.' },
+  { id:'capsule',   emoji:'📸',       label:'Time capsule',    desc:'Photo and video-centric. Capture a period of life in vivid detail.' },
+  { id:'self',      emoji:'✍️',       label:'Self-journal',    desc:'Just for you. Thoughts, reflections, and moments you want to hold onto.' },
+]
+
 function Welcome({ onDone }) {
   const [name, setName] = useState('')
   const [step, setStep] = useState(0)
+  const [type, setType] = useState(null)
 
-  const submitRelation = (r) => {
-    onDone(r === 'Someone else' ? name.trim() : name.trim())
-  }
+  const base = { minHeight:'100vh', background:'linear-gradient(160deg,#2E1A0E,#1a0a02)',
+    display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'0 28px' }
 
-  return step === 0 ? (
-    <div style={{ minHeight:'100vh', background:'linear-gradient(160deg,#2E1A0E,#1a0a02)',
-      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'0 28px' }}>
+  if (step === 0) return (
+    <div style={base}>
       <div style={{ textAlign:'center', maxWidth:380, width:'100%' }}>
         <div style={{ fontSize:56, marginBottom:24 }}>📓</div>
         <h1 style={{ fontFamily:'Georgia,serif', color:'#FFF8F0', fontSize:32,
@@ -325,25 +332,68 @@ function Welcome({ onDone }) {
         <p style={{ margin:'0 0 36px', fontSize:16, color:'rgba(255,240,220,.55)', lineHeight:1.7 }}>
           A private journal for the little things — the phrases, the quirks, the moments you never want to forget.
         </p>
-        <p style={{ margin:'0 0 12px', fontSize:13, fontWeight:700, letterSpacing:1.2,
-          color:P.amberLight, textTransform:'uppercase' }}>Who is this journal for?</p>
-        <div style={{ display:'flex', gap:8 }}>
-          <input autoFocus value={name} onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key==='Enter' && name.trim() && setStep(1)}
-            placeholder="Their name…"
-            style={{ flex:1, background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.2)',
-              borderRadius:12, padding:'14px 16px', fontSize:16, color:'#FFF8F0', outline:'none',
-              fontFamily:'Georgia,serif' }} />
-          <button onClick={() => name.trim() && setStep(1)} disabled={!name.trim()} style={{
-            background: name.trim() ? P.amber : 'rgba(255,255,255,.1)',
-            color:'#fff', border:'none', borderRadius:12, padding:'0 22px',
-            fontSize:20, cursor: name.trim() ? 'pointer' : 'default' }}>→</button>
+        <p style={{ margin:'0 0 16px', fontSize:13, fontWeight:700, letterSpacing:1.2,
+          color:P.amberLight, textTransform:'uppercase' }}>What kind of journal is this?</p>
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:24 }}>
+          {JOURNAL_TYPES.map(t => (
+            <button key={t.id} onClick={() => setType(t.id)} style={{
+              background: type===t.id ? 'rgba(212,133,74,.25)' : 'rgba(255,255,255,.06)',
+              border: `1.5px solid ${type===t.id ? P.amber : 'rgba(255,255,255,.15)'}`,
+              borderRadius:14, padding:'14px 16px', cursor:'pointer', textAlign:'left',
+              display:'flex', alignItems:'center', gap:14 }}>
+              <span style={{ fontSize:24 }}>{t.emoji}</span>
+              <div>
+                <div style={{ fontWeight:700, fontSize:14, color:'#FFF8F0', marginBottom:2 }}>{t.label}</div>
+                <div style={{ fontSize:12, color:'rgba(255,240,220,.5)', lineHeight:1.4 }}>{t.desc}</div>
+              </div>
+            </button>
+          ))}
         </div>
+        <button onClick={() => type && setStep(1)} disabled={!type} style={{
+          width:'100%', background: type ? P.amber : 'rgba(255,255,255,.1)',
+          color:'#fff', border:'none', borderRadius:12, padding:'14px 0',
+          fontSize:15, fontWeight:700, cursor: type ? 'pointer' : 'default' }}>Continue →</button>
       </div>
     </div>
-  ) : (
-    <div style={{ minHeight:'100vh', background:'linear-gradient(160deg,#2E1A0E,#1a0a02)',
-      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'0 28px' }}>
+  )
+
+  if (step === 1) {
+    const selectedType = JOURNAL_TYPES.find(t => t.id === type)
+    const isLovdOne = type === 'loved-one'
+    return (
+      <div style={base}>
+        <div style={{ textAlign:'center', maxWidth:380, width:'100%' }}>
+          <div style={{ fontSize:40, marginBottom:20 }}>{selectedType.emoji}</div>
+          <h2 style={{ fontFamily:'Georgia,serif', color:'#FFF8F0', fontSize:26,
+            fontWeight:700, marginBottom:8, lineHeight:1.3 }}>
+            {isLovdOne ? 'Who is this journal for?' : 'Give your journal a name.'}
+          </h2>
+          <p style={{ margin:'0 0 28px', fontSize:15, color:'rgba(255,240,220,.5)', lineHeight:1.6 }}>
+            {isLovdOne ? 'Enter the name of the person this journal is about.' : 'You can always change this later.'}
+          </p>
+          <div style={{ display:'flex', gap:8, marginBottom:24 }}>
+            <input autoFocus value={name} onChange={e => setName(e.target.value)}
+              onKeyDown={e => e.key==='Enter' && name.trim() && (isLovdOne ? setStep(2) : onDone(name.trim(), type))}
+              placeholder={isLovdOne ? 'Their name…' : 'Journal name…'}
+              style={{ flex:1, background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.2)',
+                borderRadius:12, padding:'14px 16px', fontSize:16, color:'#FFF8F0', outline:'none',
+                fontFamily:'Georgia,serif' }} />
+            <button onClick={() => name.trim() && (isLovdOne ? setStep(2) : onDone(name.trim(), type))}
+              disabled={!name.trim()} style={{
+                background: name.trim() ? P.amber : 'rgba(255,255,255,.1)',
+                color:'#fff', border:'none', borderRadius:12, padding:'0 22px',
+                fontSize:20, cursor: name.trim() ? 'pointer' : 'default' }}>→</button>
+          </div>
+          <button onClick={() => setStep(0)} style={{ background:'none', border:'none',
+            color:'rgba(255,255,255,.3)', fontSize:12, cursor:'pointer' }}>← Back</button>
+        </div>
+      </div>
+    )
+  }
+
+  // Step 2: relation picker (loved-one type only)
+  return (
+    <div style={base}>
       <div style={{ textAlign:'center', maxWidth:380, width:'100%' }}>
         <div style={{ fontSize:40, marginBottom:20 }}>🤍</div>
         <h2 style={{ fontFamily:'Georgia,serif', color:'#FFF8F0', fontSize:26,
@@ -355,7 +405,7 @@ function Welcome({ onDone }) {
         </p>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
           {RELATIONS.map(r => (
-            <button key={r} onClick={() => submitRelation(r)} style={{
+            <button key={r} onClick={() => onDone(name.trim(), type)} style={{
               background:'rgba(255,255,255,.08)', border:'1.5px solid rgba(255,255,255,.15)',
               borderRadius:12, padding:'12px 8px', fontSize:14, color:'#FFF8F0',
               cursor:'pointer', fontWeight:600,
@@ -363,7 +413,7 @@ function Welcome({ onDone }) {
             }}>{r}</button>
           ))}
         </div>
-        <button onClick={() => setStep(0)} style={{ marginTop:20, background:'none', border:'none',
+        <button onClick={() => setStep(1)} style={{ marginTop:20, background:'none', border:'none',
           color:'rgba(255,255,255,.3)', fontSize:12, cursor:'pointer' }}>← Back</button>
       </div>
     </div>
@@ -633,8 +683,8 @@ export default function Home() {
     setComments(comms || [])
   }
 
-  const finishWelcome = async (name) => {
-    const { data: j } = await supabase.from('journals').insert({ owner_id: user.id, name, created_at: new Date().toISOString() }).select().single()
+  const finishWelcome = async (name, type) => {
+    const { data: j } = await supabase.from('journals').insert({ owner_id: user.id, name, type, created_at: new Date().toISOString() }).select().single()
     setJournal(j)
     setShowWelcome(false)
     setMemories([])
@@ -703,7 +753,7 @@ export default function Home() {
     </div>
   )
 
-  if (showWelcome) return <Welcome onDone={finishWelcome} />
+  if (showWelcome) return <Welcome onDone={(name, type) => finishWelcome(name, type)} />
 
   return (
     <div style={{ minHeight:'100vh', background:P.bg }}>
@@ -714,7 +764,9 @@ export default function Home() {
               <h1 style={{ margin:0, fontFamily:'Georgia,serif', color:'#FFF8F0', fontSize:22, fontWeight:700 }}>
                 {journal?.name}
               </h1>
-              <p style={{ margin:'2px 0 0', fontSize:12, color:P.amberLight }}>{memories.length} memories</p>
+              <p style={{ margin:'2px 0 0', fontSize:12, color:P.amberLight }}>
+                {JOURNAL_TYPES.find(t=>t.id===journal?.type)?.emoji} {memories.length} memories
+              </p>
             </div>
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               {isOwner && (

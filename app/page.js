@@ -46,23 +46,34 @@ function Avatar({ name, size=32 }) {
   )
 }
 
-function PhotoBtn({ onPhoto }) {
+const MAX_BYTES = 100 * 1024 * 1024
+function isVideo(url) { return /\.(mp4|mov|webm|m4v)$/i.test(url || '') }
+
+function MediaBtn({ onMedia }) {
   const ref = useRef()
   return (
     <>
-      <input ref={ref} type="file" accept="image/*" style={{ display:'none' }}
+      <input ref={ref} type="file" accept="image/*,video/*" capture="environment" style={{ display:'none' }}
         onChange={e => {
           const f = e.target.files[0]; if (!f) return
-          const r = new FileReader(); r.onload = ev => onPhoto(ev.target.result, f); r.readAsDataURL(f)
+          if (f.size > MAX_BYTES) { alert('File is too large (max 100 MB).'); return }
+          const r = new FileReader(); r.onload = ev => onMedia(ev.target.result, f); r.readAsDataURL(f)
         }} />
       <button onClick={() => ref.current.click()} style={{
         display:'flex', alignItems:'center', gap:6, background:'none',
         border:`1.5px dashed ${P.inkFaint}`, borderRadius:8,
         padding:'7px 14px', fontSize:13, color:P.inkLight, cursor:'pointer' }}>
-        <span style={{fontSize:15}}>📷</span> Add photo
+        <span style={{fontSize:15}}>📷</span> Add photo/video
       </button>
     </>
   )
+}
+
+function MediaThumb({ url, height=200, opacity=1 }) {
+  if (!url) return null
+  return isVideo(url)
+    ? <video src={url} muted playsInline style={{ width:'100%', height, objectFit:'cover', display:'block', opacity }} />
+    : <img src={url} alt="" style={{ width:'100%', height, objectFit:'cover', display:'block', opacity }} />
 }
 
 function OnThisDay({ memories }) {
@@ -75,7 +86,7 @@ function OnThisDay({ memories }) {
   return (
     <div style={{ borderRadius:18, overflow:'hidden', marginBottom:28,
       boxShadow:'0 6px 32px rgba(46,26,14,.22)', background:P.walnut }}>
-      {m.photo_url && <img src={m.photo_url} alt="" style={{ width:'100%', height:200, objectFit:'cover', display:'block', opacity:.55 }} />}
+      {m.photo_url && <MediaThumb url={m.photo_url} height={200} opacity={0.55} />}
       <div style={{ padding:'18px 22px 22px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
           <span style={{fontSize:16}}>🕰️</span>
@@ -100,7 +111,7 @@ function MemoryCard({ m, onRate, onDelete, reactions, comments, onReact, onComme
   return (
     <article className="mem-card" style={{ background:P.card, border:`1px solid ${P.border}`,
       borderRadius:16, overflow:'hidden', marginBottom:14, boxShadow:`0 2px 14px ${P.shadow}` }}>
-      {m.photo_url && <img src={m.photo_url} alt="" style={{ width:'100%', maxHeight:260, objectFit:'cover', display:'block' }} />}
+      {m.photo_url && <MediaThumb url={m.photo_url} height={260} />}
       <div style={{ padding:'18px 20px' }}>
         <p style={{ margin:'0 0 12px', fontSize:15.5, lineHeight:1.7, color:P.ink, fontFamily:'Georgia,serif' }}>
           "{m.text}"
@@ -144,16 +155,17 @@ function MemoryCard({ m, onRate, onDelete, reactions, comments, onReact, onComme
 function AddForm({ onAdd }) {
   const [text, setText] = useState('')
   const [rating, setRating] = useState(3)
-  const [photo, setPhoto] = useState(null)
-  const [photoFile, setPhotoFile] = useState(null)
+  const [date, setDate] = useState(todayStr())
+  const [media, setMedia] = useState(null)
+  const [mediaFile, setMediaFile] = useState(null)
   const [saving, setSaving] = useState(false)
   const [flash, setFlash] = useState(false)
 
   const submit = async () => {
     if (!text.trim()) return
     setSaving(true)
-    await onAdd({ text: text.trim(), rating, date: todayStr(), tags: [], photoFile })
-    setText(''); setRating(3); setPhoto(null); setPhotoFile(null)
+    await onAdd({ text: text.trim(), rating, date, tags: [], mediaFile })
+    setText(''); setRating(3); setDate(todayStr()); setMedia(null); setMediaFile(null)
     setSaving(false); setFlash(true); setTimeout(() => setFlash(false), 2200)
   }
 
@@ -169,18 +181,23 @@ function AddForm({ onAdd }) {
         style={{ width:'100%', border:`1.5px solid ${text?P.amber:P.border}`, borderRadius:12,
           padding:'12px 14px', fontSize:15, fontFamily:'Georgia,serif', background:'#FFFEFA',
           color:P.ink, resize:'vertical', outline:'none', lineHeight:1.65 }} />
-      {photo && (
+      {media && (
         <div style={{ position:'relative', marginTop:10 }}>
-          <img src={photo} alt="" style={{ width:'100%', maxHeight:200, objectFit:'cover', borderRadius:10 }} />
-          <button onClick={() => { setPhoto(null); setPhotoFile(null) }} style={{
+          {mediaFile?.type?.startsWith('video/')
+            ? <video src={media} controls style={{ width:'100%', maxHeight:200, borderRadius:10 }} />
+            : <img src={media} alt="" style={{ width:'100%', maxHeight:200, objectFit:'cover', borderRadius:10 }} />}
+          <button onClick={() => { setMedia(null); setMediaFile(null) }} style={{
             position:'absolute', top:8, right:8, background:'rgba(0,0,0,.55)',
             color:'#fff', border:'none', borderRadius:20, padding:'3px 10px', fontSize:12, cursor:'pointer' }}>✕</button>
         </div>
       )}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:14, flexWrap:'wrap', gap:10 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
           <Stars value={rating} onChange={setRating} size={22} />
-          <PhotoBtn onPhoto={(preview, file) => { setPhoto(preview); setPhotoFile(file) }} />
+          <input type="date" value={date} max={todayStr()} onChange={e => setDate(e.target.value)}
+            style={{ border:`1px solid ${P.border}`, borderRadius:8, padding:'6px 10px',
+              fontSize:13, color:P.inkMid, background:'#FFFEFA', outline:'none', cursor:'pointer' }} />
+          <MediaBtn onMedia={(preview, file) => { setMedia(preview); setMediaFile(file) }} />
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           {flash && <span style={{ fontSize:13, color:P.green, fontWeight:600 }}>✓ Saved</span>}
@@ -196,15 +213,30 @@ function AddForm({ onAdd }) {
   )
 }
 
-function SearchBar({ value, onChange }) {
+function SearchBar({ value, onChange, dateFrom, dateTo, onDateFrom, onDateTo }) {
+  const hasFilter = dateFrom || dateTo
   return (
-    <div style={{ position:'relative', marginBottom:20 }}>
-      <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:14, color:P.inkFaint }}>🔍</span>
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder="Search memories…"
-        style={{ width:'100%', background:P.card, border:`1px solid ${P.border}`, borderRadius:10,
-          padding:'10px 14px 10px 40px', fontSize:14, color:P.ink, outline:'none' }} />
-      {value && <button onClick={() => onChange('')} style={{ position:'absolute', right:12, top:'50%',
-        transform:'translateY(-50%)', background:'none', border:'none', fontSize:15, cursor:'pointer', color:P.inkFaint }}>✕</button>}
+    <div style={{ marginBottom:20 }}>
+      <div style={{ position:'relative' }}>
+        <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:14, color:P.inkFaint }}>🔍</span>
+        <input value={value} onChange={e => onChange(e.target.value)} placeholder="Search memories…"
+          style={{ width:'100%', background:P.card, border:`1px solid ${P.border}`, borderRadius:10,
+            padding:'10px 14px 10px 40px', fontSize:14, color:P.ink, outline:'none' }} />
+        {value && <button onClick={() => onChange('')} style={{ position:'absolute', right:12, top:'50%',
+          transform:'translateY(-50%)', background:'none', border:'none', fontSize:15, cursor:'pointer', color:P.inkFaint }}>✕</button>}
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:8, flexWrap:'wrap' }}>
+        <span style={{ fontSize:12, color:P.inkLight }}>From</span>
+        <input type="date" value={dateFrom} onChange={e => onDateFrom(e.target.value)}
+          style={{ border:`1px solid ${P.border}`, borderRadius:8, padding:'5px 8px',
+            fontSize:12, color:P.inkMid, background:P.card, outline:'none' }} />
+        <span style={{ fontSize:12, color:P.inkLight }}>to</span>
+        <input type="date" value={dateTo} onChange={e => onDateTo(e.target.value)}
+          style={{ border:`1px solid ${P.border}`, borderRadius:8, padding:'5px 8px',
+            fontSize:12, color:P.inkMid, background:P.card, outline:'none' }} />
+        {hasFilter && <button onClick={() => { onDateFrom(''); onDateTo('') }} style={{
+          background:'none', border:'none', fontSize:12, color:P.inkFaint, cursor:'pointer' }}>Clear dates</button>}
+      </div>
     </div>
   )
 }
@@ -423,7 +455,9 @@ function YearRecap({ memories, journalName, onClose }) {
       rank===2 ? 'linear-gradient(160deg,#1a1a2e,#0a0a1a)' : 'linear-gradient(160deg,#1a1a0a,#0a0a02)'
     return (
       <div style={{...base, background:m.photo_url?'#000':undefined}}>
-        {m.photo_url && <img src={m.photo_url} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:.35 }} />}
+        {m.photo_url && (isVideo(m.photo_url)
+          ? <video src={m.photo_url} muted playsInline style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:.35 }} />
+          : <img src={m.photo_url} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:.35 }} />)}
         <div style={{ position:'absolute', inset:0, background:bg }} />
         <div style={{ position:'relative', zIndex:1, padding:'0 28px', maxWidth:440, width:'100%', textAlign:'center' }}>
           {rank===1 && <div style={{ fontSize:36, marginBottom:12 }}>🥇</div>}
@@ -465,6 +499,8 @@ export default function Home() {
   const [comments, setComments] = useState([])
   const [tab, setTab] = useState('journal')
   const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [commentMemId, setCommentMemId] = useState(null)
   const [showRecap, setShowRecap] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -503,12 +539,12 @@ export default function Home() {
     setMemories([])
   }
 
-  const addMemory = async ({ text, rating, date, tags, photoFile }) => {
+  const addMemory = async ({ text, rating, date, tags, mediaFile }) => {
     let photo_url = null
-    if (photoFile) {
-      const ext = photoFile.name.split('.').pop()
+    if (mediaFile) {
+      const ext = mediaFile.name.split('.').pop()
       const path = `${user.id}/${Date.now()}.${ext}`
-      await supabase.storage.from('keeper-photos').upload(path, photoFile)
+      await supabase.storage.from('keeper-photos').upload(path, mediaFile)
       const { data: { publicUrl } } = supabase.storage.from('keeper-photos').getPublicUrl(path)
       photo_url = publicUrl
     }
@@ -550,7 +586,12 @@ export default function Home() {
   const signOut = async () => { await supabase.auth.signOut(); router.push('/auth') }
 
   const sorted = [...memories].sort((a,b) => new Date(b.date)-new Date(a.date))
-  const filtered = search ? sorted.filter(m => m.text.toLowerCase().includes(search.toLowerCase())) : sorted
+  const filtered = sorted.filter(m => {
+    if (search && !m.text.toLowerCase().includes(search.toLowerCase())) return false
+    if (dateFrom && m.date < dateFrom) return false
+    if (dateTo && m.date > dateTo) return false
+    return true
+  })
   const top5 = [...memories].sort((a,b) => b.rating-a.rating).slice(0,5)
   const commentMem = commentMemId ? memories.find(m => m.id===commentMemId) : null
 
@@ -598,7 +639,8 @@ export default function Home() {
         {tab==='journal' && <>
           <OnThisDay memories={memories} />
           <AddForm onAdd={addMemory} />
-          <SearchBar value={search} onChange={setSearch} />
+          <SearchBar value={search} onChange={setSearch}
+            dateFrom={dateFrom} dateTo={dateTo} onDateFrom={setDateFrom} onDateTo={setDateTo} />
           {filtered.map(m => (
             <MemoryCard key={m.id} m={m} onRate={rateMemory} onDelete={deleteMemory}
               reactions={reactions} comments={comments} onReact={handleReact} onComment={setCommentMemId} />

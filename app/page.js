@@ -489,11 +489,84 @@ function YearRecap({ memories, journalName, onClose }) {
   )
 }
 
+function SharePanel({ journal, supabase, onClose }) {
+  const [email, setEmail] = useState('')
+  const [members, setMembers] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState('')
+
+  useEffect(() => {
+    supabase.from('journal_members').select('*').eq('journal_id', journal.id)
+      .then(({ data }) => setMembers(data || []))
+  }, [journal.id])
+
+  const invite = async () => {
+    if (!email.trim()) return
+    setSaving(true)
+    const { error } = await supabase.from('journal_members')
+      .insert({ journal_id: journal.id, email: email.trim().toLowerCase() })
+    if (error) {
+      setStatus(error.code === '23505' ? 'Already invited.' : 'Something went wrong.')
+    } else {
+      setStatus(`Invited! They'll see this journal when they sign in with ${email.trim()}.`)
+      setEmail('')
+      const { data } = await supabase.from('journal_members').select('*').eq('journal_id', journal.id)
+      setMembers(data || [])
+    }
+    setSaving(false)
+    setTimeout(() => setStatus(''), 4000)
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(0,0,0,.45)',
+      display:'flex', alignItems:'center', justifyContent:'center', padding:'0 16px' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background:P.card, borderRadius:20,
+        padding:'28px 24px', width:'100%', maxWidth:400, boxShadow:'0 8px 40px rgba(0,0,0,.2)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <span style={{ fontWeight:700, fontSize:17, color:P.ink }}>Share journal</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', color:P.inkLight }}>✕</button>
+        </div>
+        <p style={{ margin:'0 0 16px', fontSize:13, color:P.inkMid, lineHeight:1.6 }}>
+          Invite someone by email. They'll need to sign up with that same email address to view the journal.
+        </p>
+        <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="their@email.com"
+            type="email" onKeyDown={e => e.key==='Enter' && invite()}
+            style={{ flex:1, border:`1px solid ${P.border}`, borderRadius:8, padding:'10px 12px',
+              fontSize:14, color:P.ink, background:'#FFFEFA', outline:'none' }} />
+          <button onClick={invite} disabled={!email.trim() || saving} style={{
+            background: email.trim() ? P.walnut : P.inkFaint, color:'#fff', border:'none',
+            borderRadius:8, padding:'0 18px', fontSize:14, fontWeight:700, cursor:'pointer' }}>
+            {saving ? '…' : 'Invite'}
+          </button>
+        </div>
+        {status && <p style={{ margin:'0 0 12px', fontSize:13, color:P.green, fontWeight:600, lineHeight:1.5 }}>{status}</p>}
+        {members.length > 0 && (
+          <div style={{ borderTop:`1px solid ${P.border}`, paddingTop:16, marginTop:4 }}>
+            <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, letterSpacing:1.2,
+              color:P.inkLight, textTransform:'uppercase' }}>People with access</p>
+            {members.map(m => (
+              <div key={m.id} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                <Avatar name={m.email} size={30} />
+                <span style={{ fontSize:13, color:P.inkMid, flex:1 }}>{m.email}</span>
+                <span style={{ fontSize:11, fontWeight:600, color: m.user_id ? P.green : P.inkFaint }}>
+                  {m.user_id ? '● Active' : '○ Pending'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
   const supabase = createClient()
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [journal, setJournal] = useState(null)
+  const [sharedJournals, setSharedJournals] = useState([])
   const [memories, setMemories] = useState([])
   const [reactions, setReactions] = useState([])
   const [comments, setComments] = useState([])
@@ -503,6 +576,7 @@ export default function Home() {
   const [dateTo, setDateTo] = useState('')
   const [commentMemId, setCommentMemId] = useState(null)
   const [showRecap, setShowRecap] = useState(false)
+  const [showShare, setShowShare] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showWelcome, setShowWelcome] = useState(false)
 
@@ -510,13 +584,40 @@ export default function Home() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { router.push('/auth'); return }
       setUser(user)
-      loadJournal(user.id)
+      loadJournal(user.id, user.email)
     })
   }, [])
 
-  const loadJournal = async (userId) => {
+  const loadJournal = async (userId, userEmail) => {
+    // Link this user to any pending invites matching their email
+    await supabase.from('journal_members')
+      .update({ user_id: userId })
+      .eq('email', userEmail.toLowerCase())
+      .is('user_id', null)
+
+    // Load owned journal
     const { data: journals } = await supabase.from('journals').select('*').eq('owner_id', userId).limit(1)
-    if (!journals || journals.length === 0) { setShowWelcome(true); setLoading(false); return }
+
+    // Load shared journals
+    const { data: memberRows } = await supabase.from('journal_members').select('journal_id').eq('user_id', userId)
+    if (memberRows?.length) {
+      const ids = memberRows.map(r => r.journal_id)
+      const { data: shared } = await supabase.from('journals').select('*').in('id', ids)
+      setSharedJournals(shared || [])
+    }
+
+    if (!journals || journals.length === 0) {
+      if (memberRows?.length) {
+        // No owned journal — load first shared journal
+        const ids = memberRows.map(r => r.journal_id)
+        const { data: shared } = await supabase.from('journals').select('*').in('id', ids)
+        if (shared?.length) { setJournal(shared[0]); await loadMemories(shared[0].id) }
+      } else {
+        setShowWelcome(true)
+      }
+      setLoading(false)
+      return
+    }
     const j = journals[0]
     setJournal(j)
     await loadMemories(j.id)
@@ -585,6 +686,7 @@ export default function Home() {
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/auth') }
 
+  const isOwner = journal?.owner_id === user?.id
   const sorted = [...memories].sort((a,b) => new Date(b.date)-new Date(a.date))
   const filtered = sorted.filter(m => {
     if (search && !m.text.toLowerCase().includes(search.toLowerCase())) return false
@@ -614,7 +716,14 @@ export default function Home() {
               </h1>
               <p style={{ margin:'2px 0 0', fontSize:12, color:P.amberLight }}>{memories.length} memories</p>
             </div>
-            <div style={{ display:'flex', gap:8 }}>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              {isOwner && (
+                <button onClick={() => setShowShare(true)} style={{ background:'rgba(255,255,255,.1)',
+                  border:'1px solid rgba(255,255,255,.15)', borderRadius:10, padding:'8px 14px',
+                  color:'#FFF8F0', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  👥 Share
+                </button>
+              )}
               <button onClick={() => setShowRecap(true)} style={{ background:'rgba(255,255,255,.1)',
                 border:'1px solid rgba(255,255,255,.15)', borderRadius:10, padding:'8px 14px',
                 color:'#FFF8F0', fontSize:12, fontWeight:700, cursor:'pointer' }}>
@@ -636,14 +745,41 @@ export default function Home() {
       </div>
 
       <div style={{ maxWidth:560, margin:'0 auto', padding:'24px 14px 80px' }}>
+        {sharedJournals.length > 0 && (
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:20 }}>
+            {user && journal?.owner_id === user.id && (
+              <button onClick={async () => { setJournal((await supabase.from('journals').select('*').eq('owner_id', user.id).single()).data); await loadMemories(journal.id) }}
+                style={{ fontSize:12, padding:'5px 12px', borderRadius:20, border:`1px solid ${P.border}`,
+                  background: journal?.owner_id===user?.id ? P.amber : P.card, color: journal?.owner_id===user?.id ? '#fff' : P.inkMid, cursor:'pointer' }}>
+                My journal
+              </button>
+            )}
+            {sharedJournals.map(j => (
+              <button key={j.id} onClick={async () => { setJournal(j); await loadMemories(j.id) }}
+                style={{ fontSize:12, padding:'5px 12px', borderRadius:20, border:`1px solid ${P.border}`,
+                  background: journal?.id===j.id && journal?.owner_id!==user?.id ? P.amber : P.card,
+                  color: journal?.id===j.id && journal?.owner_id!==user?.id ? '#fff' : P.inkMid, cursor:'pointer' }}>
+                {j.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {tab==='journal' && <>
           <OnThisDay memories={memories} />
-          <AddForm onAdd={addMemory} />
+          {isOwner && <AddForm onAdd={addMemory} />}
+          {!isOwner && (
+            <div style={{ background:P.card, border:`1px solid ${P.border}`, borderRadius:14,
+              padding:'14px 18px', marginBottom:20, fontSize:13, color:P.inkMid, textAlign:'center' }}>
+              You're viewing this journal as a guest — you can react and comment, but only the owner can add memories.
+            </div>
+          )}
           <SearchBar value={search} onChange={setSearch}
             dateFrom={dateFrom} dateTo={dateTo} onDateFrom={setDateFrom} onDateTo={setDateTo} />
           {filtered.map(m => (
             <MemoryCard key={m.id} m={m} onRate={rateMemory} onDelete={deleteMemory}
-              reactions={reactions} comments={comments} onReact={handleReact} onComment={setCommentMemId} />
+              reactions={reactions} comments={comments} onReact={handleReact} onComment={setCommentMemId}
+              readOnly={!isOwner} />
           ))}
           {memories.length===0 && (
             <div style={{ textAlign:'center', padding:'50px 20px' }}>
@@ -676,6 +812,7 @@ export default function Home() {
       {commentMem && <CommentsDrawer memId={commentMemId} memory={commentMem} comments={comments}
         onClose={() => setCommentMemId(null)} onAdd={addComment} />}
       {showRecap && journal && <YearRecap memories={memories} journalName={journal.name} onClose={() => setShowRecap(false)} />}
+      {showShare && journal && <SharePanel journal={journal} supabase={supabase} onClose={() => setShowShare(false)} />}
     </div>
   )
 }

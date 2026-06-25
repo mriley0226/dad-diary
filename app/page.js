@@ -682,6 +682,14 @@ export default function Home() {
     setLoading(false)
   }
 
+  const resolveMediaUrls = async (mems) => {
+    const paths = (mems || []).filter(m => m.photo_url && !m.photo_url.startsWith('http')).map(m => m.photo_url)
+    if (!paths.length) return mems
+    const { data: signed } = await supabase.storage.from('keeper-photos').createSignedUrls(paths, 3600)
+    const urlMap = Object.fromEntries((signed || []).map(s => [s.path, s.signedUrl]))
+    return mems.map(m => m.photo_url && !m.photo_url.startsWith('http') ? { ...m, photo_url: urlMap[m.photo_url] || null } : m)
+  }
+
   const loadMemories = async (journalId) => {
     const { data: mems } = await supabase.from('memories').select('*').eq('journal_id', journalId).order('date', { ascending: false })
     const ids = (mems || []).map(m => m.id)
@@ -689,7 +697,8 @@ export default function Home() {
       ids.length ? supabase.from('reactions').select('*').in('memory_id', ids) : { data: [] },
       ids.length ? supabase.from('comments').select('*').in('memory_id', ids) : { data: [] },
     ])
-    setMemories(mems || [])
+    const resolved = await resolveMediaUrls(mems || [])
+    setMemories(resolved)
     setReactions(reacts || [])
     setComments(comms || [])
   }
@@ -707,13 +716,13 @@ export default function Home() {
       const ext = mediaFile.name.split('.').pop()
       const path = `${user.id}/${Date.now()}.${ext}`
       await supabase.storage.from('keeper-photos').upload(path, mediaFile)
-      const { data: { publicUrl } } = supabase.storage.from('keeper-photos').getPublicUrl(path)
-      photo_url = publicUrl
+      photo_url = path
     }
     const { data: m } = await supabase.from('memories').insert({
       journal_id: journal.id, owner_id: user.id, text, rating, date, tags, photo_url
     }).select().single()
-    setMemories(prev => [m, ...prev])
+    const [resolved] = await resolveMediaUrls([m])
+    setMemories(prev => [resolved, ...prev])
   }
 
   const rateMemory = async (id, rating) => {
@@ -777,6 +786,8 @@ export default function Home() {
               </h1>
               <p style={{ margin:'2px 0 0', fontSize:12, color:P.amberLight }}>
                 {JOURNAL_TYPES.find(t=>t.id===journal?.type)?.emoji} {memories.length} memories
+                <a href="/privacy" target="_blank" style={{ marginLeft:8, color:'rgba(240,176,122,.6)',
+                  fontSize:11, textDecoration:'none' }}>🔒 Private</a>
               </p>
             </div>
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>

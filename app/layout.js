@@ -1,4 +1,5 @@
 import './globals.css'
+import { PHProvider } from './lib/posthog'
 
 export const metadata = {
   title: 'Keeper',
@@ -8,7 +9,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <PHProvider>{children}</PHProvider>
+      </body>
     </html>
   )
 }

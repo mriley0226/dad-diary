@@ -125,7 +125,7 @@ function MemoryCard({ m, onRate, onDelete, reactions, comments, onReact, onComme
                 color:P.walnutMid, padding:'2px 8px', borderRadius:4 }}>#{t}</span>
             ))}
           </div>
-          {!readOnly && <button onClick={() => onDelete(m.id)} style={{ background:'none', border:'none', fontSize:11, color:P.inkFaint, cursor:'pointer' }}>Remove</button>}
+          {!readOnly && <button onClick={() => { if (window.confirm('Remove this memory? This cannot be undone.')) onDelete(m.id) }} style={{ background:'none', border:'none', fontSize:11, color:P.inkFaint, cursor:'pointer' }}>Remove</button>}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap', paddingTop:10, borderTop:`1px solid ${P.border}` }}>
           {EMOJIS.map(e => {

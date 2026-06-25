@@ -38,6 +38,10 @@ export default function AuthPage() {
     }
     setLoading(false)
     if (result.error) { setError(result.error.message); return }
+    if (mode === 'signup') {
+      setInfo('Account created! Check your email and click the confirmation link before signing in.')
+      return
+    }
     router.push('/')
   }
 

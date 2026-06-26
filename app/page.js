@@ -48,6 +48,7 @@ function Avatar({ name, size=32 }) {
 
 const MAX_BYTES = 100 * 1024 * 1024
 function isVideo(url) { return /\.(mp4|mov|webm|m4v)$/i.test(url || '') }
+function isAudio(url) { return /\.(webm|mp3|ogg|m4a|aac)$/i.test(url || '') || (url || '').includes('audio') }
 
 function MediaBtn({ onMedia }) {
   const ref = useRef()
@@ -69,8 +70,62 @@ function MediaBtn({ onMedia }) {
   )
 }
 
+function VoiceBtn({ onVoice }) {
+  const [recording, setRecording] = useState(false)
+  const [seconds, setSeconds] = useState(0)
+  const recorderRef = useRef(null)
+  const chunksRef = useRef([])
+  const timerRef = useRef(null)
+
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      chunksRef.current = []
+      recorder.ondataavailable = e => chunksRef.current.push(e.data)
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' })
+        stream.getTracks().forEach(t => t.stop())
+        onVoice(URL.createObjectURL(blob), file)
+      }
+      recorder.start()
+      recorderRef.current = recorder
+      setRecording(true); setSeconds(0)
+      timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000)
+    } catch { alert('Microphone access denied.') }
+  }
+
+  const stop = () => {
+    recorderRef.current?.stop()
+    clearInterval(timerRef.current)
+    setRecording(false); setSeconds(0)
+  }
+
+  const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`
+
+  return (
+    <button onClick={recording ? stop : start} style={{
+      display:'flex', alignItems:'center', gap:6, background: recording ? '#FFF0F0' : 'none',
+      border:`1.5px ${recording?'solid':'dashed'} ${recording?'#C97070':P.inkFaint}`, borderRadius:8,
+      padding:'7px 14px', fontSize:13, color: recording ? '#C97070' : P.inkLight, cursor:'pointer' }}>
+      <span style={{ fontSize:15 }}>{recording ? '⏹' : '🎙️'}</span>
+      {recording ? `Stop · ${fmt(seconds)}` : 'Voice memo'}
+    </button>
+  )
+}
+
 function MediaThumb({ url, height=200, opacity=1 }) {
   if (!url) return null
+  if (isAudio(url)) return (
+    <div style={{ padding:'14px 16px', background:'#F5EFE8', borderBottom:`1px solid ${P.border}` }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+        <span style={{ fontSize:18 }}>🎙️</span>
+        <span style={{ fontSize:12, fontWeight:700, color:P.inkMid, letterSpacing:.5 }}>Voice memo</span>
+      </div>
+      <audio src={url} controls style={{ width:'100%', height:36 }} />
+    </div>
+  )
   return isVideo(url)
     ? <video src={url} muted playsInline style={{ width:'100%', height, objectFit:'cover', display:'block', opacity }} />
     : <img src={url} alt="" style={{ width:'100%', height, objectFit:'cover', display:'block', opacity }} />
@@ -193,10 +248,15 @@ function AddForm({ onAdd }) {
           padding:'12px 14px', fontSize:15, fontFamily:'Georgia,serif', background:'#FFFEFA',
           color:P.ink, resize:'vertical', outline:'none', lineHeight:1.65 }} />
       {media && (
-        <div style={{ position:'relative', marginTop:10 }}>
-          {mediaFile?.type?.startsWith('video/')
-            ? <video src={media} controls style={{ width:'100%', maxHeight:200, borderRadius:10 }} />
-            : <img src={media} alt="" style={{ width:'100%', maxHeight:200, objectFit:'cover', borderRadius:10 }} />}
+        <div style={{ position:'relative', marginTop:10, borderRadius:10, overflow:'hidden' }}>
+          {mediaFile?.type?.startsWith('audio/')
+            ? <div style={{ background:'#F5EFE8', padding:'12px 14px', display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:18 }}>🎙️</span>
+                <audio src={media} controls style={{ flex:1, height:36 }} />
+              </div>
+            : mediaFile?.type?.startsWith('video/')
+              ? <video src={media} controls style={{ width:'100%', maxHeight:200 }} />
+              : <img src={media} alt="" style={{ width:'100%', maxHeight:200, objectFit:'cover' }} />}
           <button onClick={() => { setMedia(null); setMediaFile(null) }} style={{
             position:'absolute', top:8, right:8, background:'rgba(0,0,0,.55)',
             color:'#fff', border:'none', borderRadius:20, padding:'3px 10px', fontSize:12, cursor:'pointer' }}>✕</button>
@@ -209,6 +269,7 @@ function AddForm({ onAdd }) {
             style={{ border:`1px solid ${P.border}`, borderRadius:8, padding:'6px 10px',
               fontSize:13, color:P.inkMid, background:'#FFFEFA', outline:'none', cursor:'pointer' }} />
           <MediaBtn onMedia={(preview, file) => { setMedia(preview); setMediaFile(file) }} />
+          <VoiceBtn onVoice={(preview, file) => { setMedia(preview); setMediaFile(file) }} />
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           {flash && <span style={{ fontSize:13, color:P.green, fontWeight:600 }}>✓ Saved</span>}

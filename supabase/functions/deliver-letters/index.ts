@@ -19,7 +19,7 @@ serve(async () => {
   if (!letters?.length) return new Response('No letters to deliver today.', { status: 200 })
 
   const resendKey = Deno.env.get('RESEND_API_KEY')!
-  const fromAddress = Deno.env.get('FROM_EMAIL') || 'Keeper <letters@keeperjournal.app>'
+  const fromAddress = Deno.env.get('FROM_EMAIL') || 'Keeper <letters@thekeepah.com>'
 
   for (const letter of letters) {
     const html = `

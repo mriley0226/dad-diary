@@ -43,7 +43,7 @@ export default function PrivacyPage() {
         </Section>
 
         <p style={{ marginTop:48, fontSize:13, color:'#8A7A6E' }}>
-          Last updated: June 2026. Questions? Reach out via the app.
+          Last updated: June 2026 · <a href="https://thekeepah.com" style={{ color:'#8A7A6E' }}>thekeepah.com</a>
         </p>
       </div>
     </div>

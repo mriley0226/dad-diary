@@ -53,7 +53,7 @@ function MediaBtn({ onMedia }) {
   const ref = useRef()
   return (
     <>
-      <input ref={ref} type="file" accept="image/*,video/*" capture="environment" style={{ display:'none' }}
+      <input ref={ref} type="file" accept="image/*,video/*" style={{ display:'none' }}
         onChange={e => {
           const f = e.target.files[0]; if (!f) return
           if (f.size > MAX_BYTES) { alert('File is too large (max 100 MB).'); return }

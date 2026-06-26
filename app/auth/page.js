@@ -15,6 +15,7 @@ export default function AuthPage() {
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const router = useRouter()
   const supabase = createClient()
 
@@ -42,6 +43,8 @@ export default function AuthPage() {
       setInfo('Account created! Check your email and click the confirmation link before signing in.')
       return
     }
+    const hours = rememberMe ? 30 * 24 : 8
+    localStorage.setItem('keeper_expiry', Date.now() + hours * 60 * 60 * 1000)
     router.push('/')
   }
 
@@ -91,7 +94,12 @@ export default function AuthPage() {
                 background: '#FFFEFA', color: '#1A1108', outline: 'none' }} />
           )}
           {mode === 'login' && (
-            <div style={{ textAlign: 'right', marginBottom: 12, marginTop: -6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: -6 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
+                  style={{ width: 15, height: 15, accentColor: P.walnut, cursor: 'pointer' }} />
+                <span style={{ fontSize: 12, color: P.inkFaint }}>Remember me</span>
+              </label>
               <button onClick={() => { setMode('forgot'); setError(''); setInfo('') }}
                 style={{ background: 'none', border: 'none', color: P.inkFaint, fontSize: 12, cursor: 'pointer' }}>
                 Forgot password?

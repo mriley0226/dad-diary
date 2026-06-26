@@ -824,8 +824,15 @@ export default function Home() {
   const [showWelcome, setShowWelcome] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.push('/auth'); return }
+      const expiry = localStorage.getItem('keeper_expiry')
+      if (!expiry || Date.now() > Number(expiry)) {
+        localStorage.removeItem('keeper_expiry')
+        await supabase.auth.signOut()
+        router.push('/auth')
+        return
+      }
       setUser(user)
       loadJournal(user.id, user.email)
     })
@@ -976,7 +983,7 @@ export default function Home() {
     setComments(prev => [...prev, c])
   }
 
-  const signOut = async () => { await supabase.auth.signOut(); router.push('/auth') }
+  const signOut = async () => { localStorage.removeItem('keeper_expiry'); await supabase.auth.signOut(); router.push('/auth') }
 
   const isOwner = journal?.owner_id === user?.id
   const sorted = [...memories].sort((a,b) => new Date(b.date)-new Date(a.date))

@@ -105,13 +105,24 @@ function OnThisDay({ memories }) {
   )
 }
 
-function MemoryCard({ m, onRate, onDelete, reactions, comments, onReact, onComment, readOnly }) {
+function MemoryCard({ m, onRate, onDelete, onAddMedia, reactions, comments, onReact, onComment, readOnly }) {
   const myReact = reactions.find(r => r.memory_id === m.id && r.is_me)?.emoji
   const totalC = comments.filter(c => c.memory_id === m.id).length
+  const mediaRef = useRef()
   return (
     <article className="mem-card" style={{ background:P.card, border:`1px solid ${P.border}`,
       borderRadius:16, overflow:'hidden', marginBottom:14, boxShadow:`0 2px 14px ${P.shadow}` }}>
       {m.photo_url && <MediaThumb url={m.photo_url} height={260} />}
+      {!m.photo_url && !readOnly && (
+        <>
+          <input ref={mediaRef} type="file" accept="image/*,video/*" style={{ display:'none' }}
+            onChange={e => { const f = e.target.files[0]; if (!f) return; if (f.size > MAX_BYTES) { alert('File too large (max 100 MB).'); return } onAddMedia(m.id, f) }} />
+          <button onClick={() => mediaRef.current.click()} style={{
+            display:'block', width:'100%', padding:'10px', background:'none',
+            border:'none', borderBottom:`1px solid ${P.border}`, fontSize:12,
+            color:P.inkFaint, cursor:'pointer', textAlign:'center' }}>📷 Add photo or video</button>
+        </>
+      )}
       <div style={{ padding:'18px 20px' }}>
         <p style={{ margin:'0 0 12px', fontSize:15.5, lineHeight:1.7, color:P.ink, fontFamily:'Georgia,serif' }}>
           "{m.text}"
@@ -725,6 +736,16 @@ export default function Home() {
     setMemories(prev => [resolved, ...prev])
   }
 
+  const addMediaToMemory = async (id, file) => {
+    const ext = file.name.split('.').pop()
+    const path = `${user.id}/${Date.now()}.${ext}`
+    await supabase.storage.from('keeper-photos').upload(path, file)
+    await supabase.from('memories').update({ photo_url: path }).eq('id', id)
+    const [{ data: signed }] = [await supabase.storage.from('keeper-photos').createSignedUrls([path], 3600)]
+    const signedUrl = signed?.[0]?.signedUrl || null
+    setMemories(prev => prev.map(m => m.id === id ? { ...m, photo_url: signedUrl } : m))
+  }
+
   const rateMemory = async (id, rating) => {
     await supabase.from('memories').update({ rating }).eq('id', id)
     setMemories(prev => prev.map(m => m.id===id ? {...m, rating} : m))
@@ -851,7 +872,7 @@ export default function Home() {
           <SearchBar value={search} onChange={setSearch}
             dateFrom={dateFrom} dateTo={dateTo} onDateFrom={setDateFrom} onDateTo={setDateTo} />
           {filtered.map(m => (
-            <MemoryCard key={m.id} m={m} onRate={rateMemory} onDelete={deleteMemory}
+            <MemoryCard key={m.id} m={m} onRate={rateMemory} onDelete={deleteMemory} onAddMedia={addMediaToMemory}
               reactions={reactions} comments={comments} onReact={handleReact} onComment={setCommentMemId}
               readOnly={!isOwner} />
           ))}
@@ -875,7 +896,7 @@ export default function Home() {
                 <span style={{ fontFamily:'Georgia,serif', fontWeight:700, fontSize:30,
                   color:i===0?P.amber:P.inkFaint, lineHeight:1, minWidth:30, paddingTop:18 }}>{i+1}</span>
                 <div style={{ flex:1 }}>
-                  <MemoryCard m={m} reactions={reactions} comments={comments} onReact={handleReact} onComment={setCommentMemId} />
+                  <MemoryCard m={m} reactions={reactions} comments={comments} onReact={handleReact} onComment={setCommentMemId} onAddMedia={addMediaToMemory} readOnly={!isOwner} />
                 </div>
               </div>
             ))

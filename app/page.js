@@ -622,6 +622,125 @@ function SharePanel({ journal, supabase, onClose }) {
   )
 }
 
+function LetterCompose({ onSave, onClose }) {
+  const [to, setTo] = useState('')
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [deliverAt, setDeliverAt] = useState('')
+  const [saving, setSaving] = useState(false)
+  const minDate = new Date(); minDate.setDate(minDate.getDate() + 1)
+  const minDateStr = minDate.toISOString().split('T')[0]
+  const ready = to && subject && body && deliverAt
+
+  const save = async () => {
+    if (!ready) return
+    setSaving(true)
+    await onSave({ recipient_email: to, subject, body, deliver_at: deliverAt })
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:300, background:P.bg, display:'flex', flexDirection:'column', overflowY:'auto' }}>
+      <div style={{ background:P.walnut, padding:'16px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <span style={{ fontFamily:'Georgia,serif', color:'#FFF8F0', fontSize:18, fontWeight:700 }}>Write a letter</span>
+        <button onClick={onClose} style={{ background:'none', border:'none', color:'rgba(255,255,255,.5)', fontSize:20, cursor:'pointer' }}>✕</button>
+      </div>
+      <div style={{ flex:1, padding:'24px 20px', maxWidth:600, margin:'0 auto', width:'100%' }}>
+        <p style={{ margin:'0 0 24px', fontSize:14, color:P.inkMid, lineHeight:1.7, fontStyle:'italic', fontFamily:'Georgia,serif' }}>
+          Write something you want someone to read on a specific day — years from now, or sooner.
+          They'll receive it by email exactly when you choose, even if they've never heard of Keeper.
+        </p>
+        {[
+          { label:'To', el: <input value={to} onChange={e=>setTo(e.target.value)} type="email" placeholder="their@email.com"
+              style={{ width:'100%', border:`1px solid ${P.border}`, borderRadius:10, padding:'11px 14px', fontSize:15, color:P.ink, background:'#FFFEFA', outline:'none' }} /> },
+          { label:'Deliver on', el: <input value={deliverAt} onChange={e=>setDeliverAt(e.target.value)} type="date" min={minDateStr}
+              style={{ border:`1px solid ${P.border}`, borderRadius:10, padding:'11px 14px', fontSize:15, color:P.ink, background:'#FFFEFA', outline:'none' }} /> },
+          { label:'Subject', el: <input value={subject} onChange={e=>setSubject(e.target.value)} placeholder="A letter for you"
+              style={{ width:'100%', border:`1px solid ${P.border}`, borderRadius:10, padding:'11px 14px', fontSize:15, color:P.ink, background:'#FFFEFA', outline:'none' }} /> },
+        ].map(({label,el}) => (
+          <label key={label} style={{ display:'block', marginBottom:16 }}>
+            <span style={{ fontSize:11, fontWeight:700, letterSpacing:1.2, color:P.inkLight, textTransform:'uppercase', display:'block', marginBottom:6 }}>{label}</span>
+            {el}
+          </label>
+        ))}
+        <label style={{ display:'block', marginBottom:24 }}>
+          <span style={{ fontSize:11, fontWeight:700, letterSpacing:1.2, color:P.inkLight, textTransform:'uppercase', display:'block', marginBottom:6 }}>Letter</span>
+          <textarea value={body} onChange={e=>setBody(e.target.value)} rows={14} placeholder="Dear ..."
+            style={{ width:'100%', border:`1px solid ${body?P.amber:P.border}`, borderRadius:10, padding:'14px',
+              fontSize:16, fontFamily:'Georgia,serif', color:P.ink, background:'#FFFEFA',
+              outline:'none', lineHeight:1.8, resize:'vertical' }} />
+        </label>
+        <button onClick={save} disabled={!ready||saving} style={{
+          width:'100%', background:ready?P.walnut:P.inkFaint, color:'#fff', border:'none',
+          borderRadius:12, padding:'14px 0', fontSize:15, fontWeight:700,
+          cursor:ready?'pointer':'default', marginBottom:40 }}>
+          {saving ? 'Sealing…' : '✉️ Seal & Schedule'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function LettersTab({ letters, onWrite, isOwner }) {
+  const pending = letters.filter(l => !l.delivered_at).sort((a,b) => new Date(a.deliver_at)-new Date(b.deliver_at))
+  const delivered = letters.filter(l => l.delivered_at)
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+        <p style={{ margin:0, fontSize:11, fontWeight:700, letterSpacing:1.5, color:P.inkLight, textTransform:'uppercase' }}>
+          {pending.length} scheduled · {delivered.length} delivered
+        </p>
+        {isOwner && (
+          <button onClick={onWrite} style={{ background:P.walnut, color:'#fff', border:'none',
+            borderRadius:10, padding:'10px 18px', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+            ✉️ Write a letter
+          </button>
+        )}
+      </div>
+      {pending.length===0 && delivered.length===0 && (
+        <div style={{ textAlign:'center', padding:'60px 20px' }}>
+          <div style={{ fontSize:48, marginBottom:16 }}>✉️</div>
+          <p style={{ fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:P.ink, marginBottom:8 }}>No letters yet.</p>
+          <p style={{ fontSize:14, color:P.inkLight, lineHeight:1.7, maxWidth:280, margin:'0 auto' }}>
+            Write something for someone to read years from now. It arrives in their inbox on the exact day you choose.
+          </p>
+        </div>
+      )}
+      {pending.map(l => (
+        <div key={l.id} style={{ background:P.card, border:`1px solid ${P.border}`, borderRadius:14,
+          padding:'18px 20px', marginBottom:12, boxShadow:`0 2px 10px ${P.shadow}` }}>
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+            <div>
+              <p style={{ margin:'0 0 4px', fontWeight:700, fontSize:15, color:P.ink }}>{l.subject}</p>
+              <p style={{ margin:'0 0 10px', fontSize:13, color:P.inkMid }}>To: {l.recipient_email}</p>
+              <span style={{ fontSize:11, fontWeight:700, background:P.amberPale, color:P.walnutMid, padding:'3px 10px', borderRadius:20 }}>
+                📅 Delivers {fmt(l.deliver_at, {month:'long', day:'numeric', year:'numeric'})}
+              </span>
+            </div>
+            <span style={{ fontSize:28 }}>🔒</span>
+          </div>
+        </div>
+      ))}
+      {delivered.length > 0 && (
+        <>
+          <p style={{ margin:'28px 0 12px', fontSize:11, fontWeight:700, letterSpacing:1.5, color:P.inkLight, textTransform:'uppercase' }}>Delivered</p>
+          {delivered.map(l => (
+            <div key={l.id} style={{ background:P.card, border:`1px solid ${P.border}`, borderRadius:14,
+              padding:'18px 20px', marginBottom:12, opacity:.65 }}>
+              <p style={{ margin:'0 0 4px', fontWeight:700, fontSize:15, color:P.ink }}>{l.subject}</p>
+              <p style={{ margin:'0 0 4px', fontSize:13, color:P.inkMid }}>To: {l.recipient_email}</p>
+              <p style={{ margin:0, fontSize:12, color:P.inkFaint }}>
+                Delivered {fmt(l.delivered_at.split('T')[0], {month:'long', day:'numeric', year:'numeric'})}
+              </p>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Home() {
   const supabase = createClient()
   const router = useRouter()
@@ -638,6 +757,8 @@ export default function Home() {
   const [commentMemId, setCommentMemId] = useState(null)
   const [showRecap, setShowRecap] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [showCompose, setShowCompose] = useState(false)
+  const [letters, setLetters] = useState([])
   const [loading, setLoading] = useState(true)
   const [showWelcome, setShowWelcome] = useState(false)
 
@@ -689,8 +810,20 @@ export default function Home() {
     }
     const j = journals[0]
     setJournal(j)
-    await loadMemories(j.id)
+    await Promise.all([loadMemories(j.id), loadLetters(j.id)])
     setLoading(false)
+  }
+
+  const loadLetters = async (journalId) => {
+    const { data } = await supabase.from('letters').select('*').eq('journal_id', journalId).order('deliver_at')
+    setLetters(data || [])
+  }
+
+  const saveLetter = async ({ recipient_email, subject, body, deliver_at }) => {
+    const { data } = await supabase.from('letters').insert({
+      journal_id: journal.id, user_id: user.id, recipient_email, subject, body, deliver_at
+    }).select().single()
+    if (data) setLetters(prev => [...prev, data])
   }
 
   const resolveMediaUrls = async (mems) => {
@@ -829,7 +962,7 @@ export default function Home() {
             </div>
           </div>
           <div style={{ display:'flex' }}>
-            {[['journal','Journal'],['top5','Best of']].map(([id,label]) => (
+            {[['journal','Journal'],['top5','Best of'],['letters','Letters ✉️']].map(([id,label]) => (
               <button key={id} onClick={() => setTab(id)} style={{ background:'none', border:'none', cursor:'pointer',
                 padding:'8px 16px', fontSize:13, fontWeight:600,
                 color: tab===id ? P.amber : '#7A5A3A',
@@ -902,12 +1035,15 @@ export default function Home() {
             ))
           }
         </>}
+
+        {tab==='letters' && <LettersTab letters={letters} onWrite={() => setShowCompose(true)} isOwner={isOwner} />}
       </div>
 
       {commentMem && <CommentsDrawer memId={commentMemId} memory={commentMem} comments={comments}
         onClose={() => setCommentMemId(null)} onAdd={addComment} />}
       {showRecap && journal && <YearRecap memories={memories} journalName={journal.name} onClose={() => setShowRecap(false)} />}
       {showShare && journal && <SharePanel journal={journal} supabase={supabase} onClose={() => setShowShare(false)} />}
+      {showCompose && <LetterCompose onSave={saveLetter} onClose={() => setShowCompose(false)} />}
     </div>
   )
 }

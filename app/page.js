@@ -915,13 +915,21 @@ export default function Home() {
     setMemories([])
   }
 
+  const uploadMedia = async (file) => {
+    const ext = file.name.split('.').pop().toLowerCase()
+    const path = `${user.id}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('keeper-photos').upload(path, file, {
+      contentType: file.type || (ext === 'mov' ? 'video/quicktime' : ext === 'mp4' ? 'video/mp4' : undefined),
+      upsert: false,
+    })
+    if (error) { alert(`Upload failed: ${error.message}`); return null }
+    return path
+  }
+
   const addMemory = async ({ text, rating, date, tags, mediaFile }) => {
     let photo_url = null
     if (mediaFile) {
-      const ext = mediaFile.name.split('.').pop()
-      const path = `${user.id}/${Date.now()}.${ext}`
-      await supabase.storage.from('keeper-photos').upload(path, mediaFile)
-      photo_url = path
+      photo_url = await uploadMedia(mediaFile)
     }
     const { data: m } = await supabase.from('memories').insert({
       journal_id: journal.id, owner_id: user.id, text, rating, date, tags, photo_url
@@ -931,9 +939,8 @@ export default function Home() {
   }
 
   const addMediaToMemory = async (id, file) => {
-    const ext = file.name.split('.').pop()
-    const path = `${user.id}/${Date.now()}.${ext}`
-    await supabase.storage.from('keeper-photos').upload(path, file)
+    const path = await uploadMedia(file)
+    if (!path) return
     await supabase.from('memories').update({ photo_url: path }).eq('id', id)
     const [{ data: signed }] = [await supabase.storage.from('keeper-photos').createSignedUrls([path], 3600)]
     const signedUrl = signed?.[0]?.signedUrl || null

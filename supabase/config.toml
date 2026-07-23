@@ -1,0 +1,9 @@
+# send-invite is called from the browser, so the platform JWT gate must be
+# off — otherwise the CORS preflight (which carries no auth header) is rejected
+# before the function runs. The function verifies the caller's token and
+# journal ownership itself, so this is not an unguarded endpoint.
+[functions.send-invite]
+verify_jwt = false
+
+# deliver-letters is triggered server-side (scheduled), never from a browser,
+# so it keeps the default JWT gate.

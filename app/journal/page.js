@@ -50,15 +50,21 @@ const MAX_BYTES = 100 * 1024 * 1024
 function isVideo(url) { return /\.(mp4|mov|webm|m4v)$/i.test(url || '') }
 function isAudio(url) { return /\.(webm|mp3|ogg|m4a|aac)$/i.test(url || '') || (url || '').includes('audio') }
 
+function isVideoFile(f) { return f.type.startsWith('video/') || /\.(mov|mp4|webm|m4v)$/i.test(f.name) }
+
 function MediaBtn({ onMedia }) {
   const ref = useRef()
   return (
     <>
-      <input ref={ref} type="file" accept="image/*,video/*" style={{ display:'none' }}
+      <input ref={ref} type="file" accept="image/*,video/*,.mov" style={{ display:'none' }}
         onChange={e => {
           const f = e.target.files[0]; if (!f) return
           if (f.size > MAX_BYTES) { alert('File is too large (max 100 MB).'); return }
-          const r = new FileReader(); r.onload = ev => onMedia(ev.target.result, f); r.readAsDataURL(f)
+          if (isVideoFile(f)) {
+            onMedia(null, f)
+          } else {
+            const r = new FileReader(); r.onload = ev => onMedia(ev.target.result, f); r.readAsDataURL(f)
+          }
         }} />
       <button onClick={() => ref.current.click()} style={{
         display:'flex', alignItems:'center', gap:6, background:'none',
@@ -170,7 +176,7 @@ function MemoryCard({ m, onRate, onDelete, onAddMedia, reactions, comments, onRe
       {m.photo_url && <MediaThumb url={m.photo_url} height={260} />}
       {!m.photo_url && !readOnly && (
         <>
-          <input ref={mediaRef} type="file" accept="image/*,video/*" style={{ display:'none' }}
+          <input ref={mediaRef} type="file" accept="image/*,video/*,.mov" style={{ display:'none' }}
             onChange={e => { const f = e.target.files[0]; if (!f) return; if (f.size > MAX_BYTES) { alert('File too large (max 100 MB).'); return } onAddMedia(m.id, f) }} />
           <button onClick={() => mediaRef.current.click()} style={{
             display:'block', width:'100%', padding:'10px', background:'none',
@@ -247,15 +253,18 @@ function AddForm({ onAdd }) {
         style={{ width:'100%', border:`1.5px solid ${text?P.amber:P.border}`, borderRadius:12,
           padding:'12px 14px', fontSize:15, fontFamily:'Georgia,serif', background:'#FFFEFA',
           color:P.ink, resize:'vertical', outline:'none', lineHeight:1.65 }} />
-      {media && (
+      {(media || mediaFile) && (
         <div style={{ position:'relative', marginTop:10, borderRadius:10, overflow:'hidden' }}>
           {mediaFile?.type?.startsWith('audio/')
             ? <div style={{ background:'#F5EFE8', padding:'12px 14px', display:'flex', alignItems:'center', gap:10 }}>
                 <span style={{ fontSize:18 }}>🎙️</span>
                 <audio src={media} controls style={{ flex:1, height:36 }} />
               </div>
-            : mediaFile?.type?.startsWith('video/')
-              ? <video src={media} controls style={{ width:'100%', maxHeight:200 }} />
+            : mediaFile && isVideoFile(mediaFile)
+              ? <div style={{ background:'#1a1a1a', padding:'24px 16px', display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:36 }}>🎬</span>
+                  <span style={{ fontSize:13, color:'rgba(255,255,255,.65)', textAlign:'center', wordBreak:'break-all' }}>{mediaFile.name}</span>
+                </div>
               : <img src={media} alt="" style={{ width:'100%', maxHeight:200, objectFit:'cover' }} />}
           <button onClick={() => { setMedia(null); setMediaFile(null) }} style={{
             position:'absolute', top:8, right:8, background:'rgba(0,0,0,.55)',

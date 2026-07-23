@@ -38,7 +38,10 @@ serve(async (req) => {
 
     // Who is calling?
     const { data: { user }, error: userErr } = await supabase.auth.getUser(token)
-    if (userErr || !user) return json({ error: 'Not signed in.' }, 401)
+    if (userErr || !user) {
+      console.error('auth failed:', userErr?.message ?? 'no user for token')
+      return json({ error: 'Not signed in.' }, 401)
+    }
 
     // Do they own the journal they're inviting to? Only the owner may send.
     const { data: journal } = await supabase
@@ -48,6 +51,7 @@ serve(async (req) => {
       .single()
 
     if (!journal || journal.owner_id !== user.id) {
+      console.error('ownership check failed:', { journal_id, caller: user.id, owner: journal?.owner_id ?? 'journal not found' })
       return json({ error: 'You can only invite people to your own journal.' }, 403)
     }
 
@@ -104,11 +108,15 @@ serve(async (req) => {
 
     if (!res.ok) {
       const detail = await res.text()
+      console.error('resend rejected:', res.status, detail)
       return json({ error: 'Email failed to send.', detail }, 502)
     }
 
+    console.log('invite emailed to', to, 'for journal', journal.id)
+
     return json({ ok: true })
   } catch (e) {
+    console.error('unhandled:', String(e))
     return json({ error: String(e) }, 500)
   }
 })

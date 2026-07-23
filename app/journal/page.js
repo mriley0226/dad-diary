@@ -634,12 +634,26 @@ function SharePanel({ journal, supabase, onClose }) {
   const invite = async () => {
     if (!email.trim()) return
     setSaving(true)
+    const inviteEmail = email.trim().toLowerCase()
     const { error } = await supabase.from('journal_members')
-      .insert({ journal_id: journal.id, email: email.trim().toLowerCase() })
+      .insert({ journal_id: journal.id, email: inviteEmail })
     if (error) {
       setStatus(error.code === '23505' ? 'Already invited.' : 'Something went wrong.')
     } else {
-      setStatus(`Invited! They'll see this journal when they sign in with ${email.trim()}.`)
+      // Access is granted by the row above; the email is a notification on top.
+      // If it fails, the invite still stands — say so rather than claim it sent.
+      let emailed = false
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const { error: fnErr } = await supabase.functions.invoke('send-invite', {
+          body: { journal_id: journal.id, email: inviteEmail },
+          headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        })
+        emailed = !fnErr
+      } catch { emailed = false }
+      setStatus(emailed
+        ? `Invite sent to ${inviteEmail}.`
+        : `Added ${inviteEmail} — but the email didn't send. Ask them to sign up with that address.`)
       setEmail('')
       const { data } = await supabase.from('journal_members').select('*').eq('journal_id', journal.id)
       setMembers(data || [])
@@ -671,7 +685,7 @@ function SharePanel({ journal, supabase, onClose }) {
             {saving ? '…' : 'Invite'}
           </button>
         </div>
-        {status && <p style={{ margin:'0 0 12px', fontSize:13, color:P.green, fontWeight:600, lineHeight:1.5 }}>{status}</p>}
+        {status && <p style={{ margin:'0 0 12px', fontSize:13, color:/didn't send|wrong/.test(status)?P.amber:P.green, fontWeight:600, lineHeight:1.5 }}>{status}</p>}
         {members.length > 0 && (
           <div style={{ borderTop:`1px solid ${P.border}`, paddingTop:16, marginTop:4 }}>
             <p style={{ margin:'0 0 10px', fontSize:11, fontWeight:700, letterSpacing:1.2,

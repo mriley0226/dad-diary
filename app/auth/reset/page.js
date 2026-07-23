@@ -34,7 +34,10 @@ export default function ResetPage() {
     setLoading(false)
     if (error) { setError(error.message); return }
     setDone(true)
-    setTimeout(() => router.push('/'), 2000)
+    // The reset link creates a session but no expiry stamp — set one so the
+    // journal's gate doesn't immediately sign them back out.
+    localStorage.setItem('keeper_expiry', Date.now() + 8 * 60 * 60 * 1000)
+    setTimeout(() => router.push('/journal'), 2000)
   }
 
   if (!ready) return (

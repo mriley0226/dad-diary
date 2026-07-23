@@ -45,7 +45,7 @@ export default function AuthPage() {
     }
     const hours = rememberMe ? 30 * 24 : 8
     localStorage.setItem('keeper_expiry', Date.now() + hours * 60 * 60 * 1000)
-    router.push('/')
+    router.push('/journal')
   }
 
   return (

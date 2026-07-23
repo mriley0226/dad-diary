@@ -662,6 +662,22 @@ function SharePanel({ journal, supabase, onClose }) {
     setTimeout(() => setStatus(''), 4000)
   }
 
+  const remove = async (m) => {
+    if (!confirm(`Remove ${m.email}? They'll lose access to this journal.`)) return
+    // Optimistic: drop it from the list immediately, restore on failure.
+    const prev = members
+    setMembers(members.filter(x => x.id !== m.id))
+    // .select() returns the rows actually deleted. If RLS silently blocks the
+    // delete it succeeds with zero rows — so an empty result means it didn't
+    // really go, not that it worked.
+    const { data, error } = await supabase.from('journal_members').delete().eq('id', m.id).select()
+    if (error || !data?.length) {
+      setMembers(prev)
+      setStatus(error ? "Couldn't remove them — try again." : "Couldn't remove them — a permissions rule is blocking it.")
+      setTimeout(() => setStatus(''), 5000)
+    }
+  }
+
   return (
     <div style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(0,0,0,.45)',
       display:'flex', alignItems:'center', justifyContent:'center', padding:'0 16px' }} onClick={onClose}>
@@ -697,6 +713,8 @@ function SharePanel({ journal, supabase, onClose }) {
                 <span style={{ fontSize:11, fontWeight:600, color: m.user_id ? P.green : P.inkFaint }}>
                   {m.user_id ? '● Active' : '○ Pending'}
                 </span>
+                <button onClick={() => remove(m)} title="Remove access" style={{ background:'none', border:'none',
+                  cursor:'pointer', color:P.inkFaint, fontSize:16, lineHeight:1, padding:'0 2px' }}>✕</button>
               </div>
             ))}
           </div>

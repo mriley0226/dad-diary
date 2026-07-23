@@ -7,16 +7,20 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 // must verify the caller is signed in AND owns the journal before sending;
 // otherwise it would be an open relay for mail from thekeepah.com.
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  // supabase-js attaches apikey and x-client-info to the POST on top of
-  // authorization/content-type; all must be allowed or the browser blocks
-  // the real request after a successful preflight.
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+// Reflect whatever headers the browser says it will send on the preflight,
+// so a header we didn't anticipate can't make the browser silently refuse the
+// POST. Falls back to the known supabase-js set when the browser names none.
+function cors(req: Request) {
+  const requested = req.headers.get('Access-Control-Request-Headers')
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': requested ?? 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  }
 }
 
 serve(async (req) => {
+  const corsHeaders = cors(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const json = (body: unknown, status = 200) =>
